@@ -12,15 +12,31 @@ st.markdown("Generate Chen-notation ER Diagrams from **Structured JSON (Part 1)*
 # Sidebar for Gemini API Key
 with st.sidebar:
     st.header("⚙️ Configuration")
-    env_key = os.environ.get("GEMINI_API_KEY", "")
-    api_key = st.text_input(
-        "Gemini API Key (for Part 2)",
-        value=env_key,
-        type="password",
-        help="Required only when generating ER diagrams from plain text."
-    )
-    output_name = st.text_input("Output File Base Name", value="er_diagram_output")
 
+    # 1. Safely check local OS environment first, then Streamlit Cloud secrets
+    server_api_key = os.environ.get("GEMINI_API_KEY")
+    if not server_api_key:
+        try:
+            server_api_key = st.secrets.get("GEMINI_API_KEY")
+        except Exception:
+            server_api_key = None
+
+    # 2. Keep the input box EMPTY so your key is never exposed in the browser
+    user_api_key = st.text_input(
+        "Gemini API Key (Optional if server key is set)",
+        value="",
+        type="password",
+        placeholder="Paste your own key or leave blank...",
+        help="Leave blank to use the default app key, or enter your own Gemini API key."
+    )
+
+    # 3. Use user's key if entered; otherwise fall back to your hidden server key
+    api_key = user_api_key.strip() if user_api_key.strip() else server_api_key
+
+    if server_api_key and not user_api_key:
+        st.caption("✅ Using built-in server API key (hidden)")
+
+    output_name = st.text_input("Output File Base Name", value="er_diagram_output")
 # Create two tabs for the two input modes
 tab_text, tab_json = st.tabs(["✨ Part 2: Plain-Text Description (AI)", "📄 Part 1: Structured JSON"])
 
