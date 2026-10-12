@@ -3,18 +3,21 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Any
 
 
-@dataclass
+@dataclass # hold structured data
 class Attribute:
     name: str
     is_primary_key: bool = False
     is_multi_valued: bool = False
     composite: List[str] = field(default_factory=list)
 
-    def __init__(self, data: dict):
-        self.name = data["name"]
-        self.is_primary_key = data.get("isPrimaryKey", False)
-        self.is_multi_valued = data.get("isMultiValued", False)
-        self.composite = data.get("composite", [])
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'Attribute':
+        return cls(
+            name=data["name"],
+            is_primary_key=data.get("isPrimaryKey", False),
+            is_multi_valued=data.get("isMultiValued", False),
+            composite=data.get("composite", [])
+        )
 
     @property
     def is_composite(self) -> bool:  # still like attribute not method
@@ -26,9 +29,12 @@ class Entity:
     name: str
     attributes: List[Attribute] = field(default_factory=list)  # to create new list in memory for each instance
 
-    def __init__(self, data: dict):
-        self.name = data["name"]
-        self.attributes = [Attribute(attr) for attr in data.get("attributes", [])]
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'Entity':
+        attributes = [
+            Attribute.from_dict(attr) for attr in data.get("attributes", [])
+        ]
+        return cls(name=data["name"], attributes=attributes)
 
 
 @dataclass
@@ -38,11 +44,14 @@ class Relationship:
     name: str
     cardinality: str
 
-    def __init__(self, data: dict):
-        self.name = data["name"]
-        self.entity1 = data["entity1"]
-        self.entity2 = data["entity2"]
-        self.cardinality = data["cardinality"]
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'Relationship':
+        return cls(
+            name=data["name"],
+            entity1=data["entity1"],
+            entity2=data["entity2"],
+            cardinality=data["cardinality"]
+        )
 
 
 
@@ -53,12 +62,12 @@ def parse_json(json_input: str | Dict[str, Any], is_file:bool = False) -> tuple[
             data = json.load(file)
 
     elif isinstance(json_input, str): # raw json
-        data = json.laods(json_input)
+        data = json.loads(json_input)
     else:                             # python dict
         data = json_input
 
 
-    entities = [Entity(ent) for ent in data.get("entities", [])]
-    relationships = [Relationship(rel) for rel in data.get("relationships", [])]
+    entities = [Entity.from_dict(ent) for ent in data.get("entities", [])]
+    relationships = [Relationship.from_dict(rel) for rel in data.get("relationships", [])]
     return entities, relationships
 
