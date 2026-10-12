@@ -1,7 +1,7 @@
 import os
 import json
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Literal
 from graphviz import Graph
 from pydantic import BaseModel, Field
 if os.name == "nt":
@@ -37,7 +37,14 @@ class Relationship(BaseModel):
     entity2: str = Field(description="Exact name of the second entity in the relationship")
     name: str = Field(description="Verb/action name of the relationship (e.g., Works_In, Manages)")
     cardinality: str = Field(description="Cardinality ratio formatted strictly as '1:1', '1:N', 'N:1', or 'M:N'")
-
+    participation1: Optional[Literal["total", "partial"]] = Field(
+        default="partial",
+        description="Participation of entity1 in the relationship: 'total' (mandatory/must) or 'partial' (optional/may)."
+    )
+    participation2: Optional[Literal["total", "partial"]] = Field(
+        default="partial",
+        description="Participation of entity2 in the relationship: 'total' (mandatory/must) or 'partial' (optional/may)."
+    )
 
 class ERDiagramSchema(BaseModel):
     entities: List[Entity]
@@ -106,8 +113,10 @@ def draw_er_diagram(entities : List[Entity], relationships: List[Relationship], 
             else:
                 card1, card2 = rel.cardinality, ""
 
-            dot.edge(f"ent_{rel.entity1}", rel_id, label=f" {card1} ")
-            dot.edge(rel_id, f"ent_{rel.entity2}", label=f" {card2} ")
+            edge1_color = "black:invis:black" if (rel.participation1 or "").lower() == "total" else "black"
+            edge2_color = "black:invis:black" if (rel.participation2 or "").lower() == "total" else "black"
+            dot.edge(f"ent_{rel.entity1}", rel_id, label=f" {card1} ", color=edge1_color)
+            dot.edge(rel_id, f"ent_{rel.entity2}", label=f" {card2} ", color=edge2_color)
 
     saved_path = dot.render(filename=output_filename, cleanup=True)
     return saved_path
