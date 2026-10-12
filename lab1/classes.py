@@ -5,6 +5,7 @@ from typing import List, Dict, Any, Optional
 from graphviz import Graph
 from pydantic import BaseModel, Field
 os.environ["PATH"] += os.pathsep + r"C:\Program Files\Graphviz\bin"
+
 class Attribute(BaseModel):
     name: str = Field(description="Name of the attribute")
     isPrimaryKey: Optional[bool] = Field(

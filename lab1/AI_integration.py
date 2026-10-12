@@ -2,7 +2,8 @@ import os
 import json
 from google import genai
 from google.genai import types
-
+from google.genai.errors import APIError
+import time
 from classes import parse_json, draw_er_diagram, ERDiagramSchema
 
 
@@ -45,16 +46,40 @@ def generate_er_json_from_text(system_description:str, output_json_path:str, api
     6. "cardinality" MUST be formatted with a colon, such as "1:1", "1:N", "N:1", or "M:N".
     """
 
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=f"Extract an ER diagram schema from this description:\n{system_description}",
-        config=types.GenerateContentConfig(
-            system_instruction=system_prompt,
-            response_mime_type="application/json",
-            response_schema=ERDiagramSchema,
-            temperature=0.1, # make the model deterministic
-        ),
-    )
+    models_to_try = [
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-2.0-flash",
+    ]
+
+    last_error = None
+    response = None
+
+    for model_name in models_to_try:
+        try:
+            print(f"Trying model: {model_name}...")
+            response = client.models.generate_content(
+                model=model_name,
+                contents=f"Extract an ER diagram schema from this description:\n{system_description}",
+                config=types.GenerateContentConfig(
+                    system_instruction=system_prompt,
+                    response_mime_type="application/json",
+                    response_schema=ERDiagramSchema,
+                    temperature=0.1,
+                ),
+            )
+            break
+        except APIError as e:
+            last_error = e
+            if e.code in (503, 429):
+                print(f"[{model_name}] busy (HTTP {e.code}), switching to fallback model...")
+                time.sleep(1)
+                continue
+            else:
+                raise e
+
+    if response is None:
+        raise RuntimeError(f"All Gemini models are currently busy. Last error: {last_error}")
 
     er_schema: ERDiagramSchema = response.parsed
 
