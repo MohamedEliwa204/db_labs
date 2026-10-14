@@ -47,6 +47,9 @@ def generate_er_json_from_text(system_description:str, output_json_path:str, api
         5. In "relationships", "entity1" and "entity2" MUST exactly match the "name" of an entity defined in the "entities" list.
         6. "cardinality" MUST be formatted with a colon, such as "1:1", "1:N", "N:1", or "M:N".
         7. Set "participation1" (for entity1) and "participation2" (for entity2) to "total" if every instance of that entity MUST participate in the relationship (e.g., "every employee must work in a department"), or "partial" if participation is optional (e.g., "an employee may manage a department").
+        8. If an entity cannot be uniquely identified without another entity, set "isWeak": true on that entity.
+        9. For weak entities, mark their discriminator attribute with "isPartialKey": true instead of "isPrimaryKey".
+        10. If a relationship connects a weak entity to its strong owner entity, set "isIdentifying": true on that relationship.
         """
 
     models_to_try = [

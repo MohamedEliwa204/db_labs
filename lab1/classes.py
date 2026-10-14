@@ -13,6 +13,10 @@ class Attribute(BaseModel):
         default=None,
         description="Set to true ONLY if this is a primary key attribute."
     )
+    isPartialKey: Optional[bool] = Field(
+        default=None,
+        description="Set to true ONLY if this is a partial key (discriminator) for a weak entity."
+    )
     isMultiValued: Optional[bool] = Field(
         default=None,
         description="Set to true ONLY if this attribute can hold multiple values (e.g., Phone, Location)."
@@ -29,6 +33,10 @@ class Attribute(BaseModel):
 
 class Entity(BaseModel):
     name: str = Field(description="Singular noun name of the entity (e.g., Employee, Department)")
+    isWeak: Optional[bool] = Field(
+        default=None,
+        description="Set to true ONLY if this is a weak entity that depends on another entity."
+    )
     attributes: List[Attribute]
 
 
@@ -44,6 +52,10 @@ class Relationship(BaseModel):
     participation2: Optional[Literal["total", "partial"]] = Field(
         default="partial",
         description="Participation of entity2 in the relationship: 'total' (mandatory/must) or 'partial' (optional/may)."
+    )
+    isIdentifying: Optional[bool] = Field(
+        default=None,
+        description="Set to true ONLY if this is an identifying relationship connecting a weak entity to its owner."
     )
 
 class ERDiagramSchema(BaseModel):
@@ -71,10 +83,12 @@ def draw_er_diagram(entities : List[Entity], relationships: List[Relationship], 
 
     for entity in entities:
         ent_id = f"ent_{entity.name}"
+        ent_peripheries = "2" if entity.isWeak else "1"
         dot.node(
             ent_id,
             label=entity.name,
             shape="box",
+            peripheries=ent_peripheries,
             style="filled",
             fillcolor="#E8F0FE"
         )
@@ -82,12 +96,14 @@ def draw_er_diagram(entities : List[Entity], relationships: List[Relationship], 
         for attr in entity.attributes:
             attr_id = f"attr_{entity.name}_{attr.name}"
             label = f"<<U>{attr.name}</U>>" if attr.isPrimaryKey else attr.name
+            attr_style = "dashed" if attr.isPartialKey else "solid"
             peripheries = "2" if attr.isMultiValued else "1"
 
             dot.node(
                 attr_id,
                 label=label,
                 shape="ellipse",
+                style=attr_style,
                 peripheries=peripheries
             )
             dot.edge(ent_id, attr_id)
@@ -100,11 +116,13 @@ def draw_er_diagram(entities : List[Entity], relationships: List[Relationship], 
 
     for i, rel in enumerate(relationships):
             rel_id = f"rel_{i}_{rel.name}" # use i because if 2 relations have the same name
+            rel_peripheries = "2" if rel.isIdentifying else "1"
             dot.node(
                 rel_id,
                 label=rel.name,
                 shape="diamond",
                 style="filled",
+                peripheries=rel_peripheries,
                 fillcolor="#FEF7E0"
             )
 
