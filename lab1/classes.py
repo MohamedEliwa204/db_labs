@@ -95,15 +95,20 @@ def draw_er_diagram(entities : List[Entity], relationships: List[Relationship], 
 
         for attr in entity.attributes:
             attr_id = f"attr_{entity.name}_{attr.name}"
-            label = f"<<U>{attr.name}</U>>" if attr.isPrimaryKey else attr.name
-            attr_style = "dashed" if attr.isPartialKey else "solid"
+            if attr.isPrimaryKey:
+                label = f"<<U>{attr.name}</U>>"
+            elif attr.isPartialKey:
+                label = f'<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0"><TR><TD SIDES="B" STYLE="DASHED">{attr.name}</TD></TR></TABLE>>'
+            else:
+                label = attr.name
+
             peripheries = "2" if attr.isMultiValued else "1"
 
             dot.node(
                 attr_id,
                 label=label,
                 shape="ellipse",
-                style=attr_style,
+                style="solid",
                 peripheries=peripheries
             )
             dot.edge(ent_id, attr_id)
