@@ -40,23 +40,25 @@ class Entity(BaseModel):
     attributes: List[Attribute]
 
 
+class Participant(BaseModel):
+    entity: str
+    cardinality: str
+
+
 class Relationship(BaseModel):
-    entity1: str = Field(description="Exact name of the first entity in the relationship")
-    entity2: str = Field(description="Exact name of the second entity in the relationship")
-    name: str = Field(description="Verb/action name of the relationship (e.g., Works_In, Manages)")
-    cardinality: str = Field(description="Cardinality ratio formatted strictly as '1:1', '1:N', 'N:1', or 'M:N'")
-    participation1: Optional[Literal["total", "partial"]] = Field(
-        default="partial",
-        description="Participation of entity1 in the relationship: 'total' (mandatory/must) or 'partial' (optional/may)."
-    )
-    participation2: Optional[Literal["total", "partial"]] = Field(
-        default="partial",
-        description="Participation of entity2 in the relationship: 'total' (mandatory/must) or 'partial' (optional/may)."
-    )
-    isIdentifying: Optional[bool] = Field(
-        default=None,
-        description="Set to true ONLY if this is an identifying relationship connecting a weak entity to its owner."
-    )
+    name: str = Field(description="Verb/action name of the relationship")
+    entity1: Optional[str] = None
+    entity2: Optional[str] = None
+    cardinality: Optional[str] = None
+
+    participation1: Optional[Literal["total", "partial"]] = "partial"
+    participation2: Optional[Literal["total", "partial"]] = "partial"
+
+    isIdentifying: Optional[bool] = None
+    type: Optional[str] = None
+
+    participants: Optional[List[Participant]] = None
+    attributes: Optional[List[Attribute]] = None
 
 class ERDiagramSchema(BaseModel):
     entities: List[Entity]
@@ -120,26 +122,48 @@ def draw_er_diagram(entities : List[Entity], relationships: List[Relationship], 
                     dot.edge(attr_id, sub_id)
 
     for i, rel in enumerate(relationships):
-            rel_id = f"rel_{i}_{rel.name}" # use i because if 2 relations have the same name
-            rel_peripheries = "2" if rel.isIdentifying else "1"
-            dot.node(
-                rel_id,
-                label=rel.name,
-                shape="diamond",
-                style="filled",
-                peripheries=rel_peripheries,
-                fillcolor="#FEF7E0"
-            )
+        rel_id = f"rel_{i}_{rel.name}"
 
-            if ":" in rel.cardinality:
+        is_identifying = rel.isIdentifying or (rel.type and rel.type.lower() == "identifying")
+        rel_peripheries = "2" if is_identifying else "1"
+
+        dot.node(
+            rel_id,
+            label=rel.name,
+            shape="diamond",
+            style="filled",
+            peripheries=rel_peripheries,
+            fillcolor="#FEF7E0"
+        )
+
+        if rel.participants:
+
+            for p in rel.participants:
+                dot.edge(f"ent_{p.entity}", rel_id, label=f" {p.cardinality} ", color="black")
+        elif rel.entity1 and rel.entity2:
+
+            if ":" in str(rel.cardinality):
                 card1, card2 = rel.cardinality.split(":", 1)
             else:
-                card1, card2 = rel.cardinality, ""
+                card1, card2 = str(rel.cardinality), ""
 
             edge1_color = "black:invis:black" if (rel.participation1 or "").lower() == "total" else "black"
             edge2_color = "black:invis:black" if (rel.participation2 or "").lower() == "total" else "black"
+
             dot.edge(f"ent_{rel.entity1}", rel_id, label=f" {card1} ", color=edge1_color)
             dot.edge(rel_id, f"ent_{rel.entity2}", label=f" {card2} ", color=edge2_color)
+        if rel.attributes:
+            for attr in rel.attributes:
+                attr_id = f"attr_rel_{i}_{attr.name}"
+                peripheries = "2" if attr.isMultiValued else "1"
+                dot.node(
+                    attr_id,
+                    label=attr.name,
+                    shape="ellipse",
+                    style="solid",
+                    peripheries=peripheries
+                )
+                dot.edge(rel_id, attr_id)
 
     saved_path = dot.render(filename=output_filename, cleanup=True)
     return saved_path
