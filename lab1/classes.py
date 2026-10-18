@@ -43,7 +43,7 @@ class Entity(BaseModel):
 class Participant(BaseModel):
     entity: str
     cardinality: str
-
+    participation: Optional[Literal["total", "partial"]] = "partial"
 
 class Relationship(BaseModel):
     name: str = Field(description="Verb/action name of the relationship")
@@ -77,11 +77,14 @@ def parse_json(json_input: str | Dict[str, Any], is_file:bool = False) -> tuple[
     return schema.entities, schema.relationships
 
 
-def draw_er_diagram(entities : List[Entity], relationships: List[Relationship], output_filename:str) -> str:
+def draw_er_diagram(entities: List[Entity], relationships: List[Relationship], output_filename: str) -> str:
     dot = Graph(name="ER_Diagram", format="png", engine="dot")
     dot.attr(rankdir="LR", nodesep="0.4", ranksep="0.8", fontname="Helvetica")
     dot.attr("node", fontname="Helvetica", fontsize="11")
     dot.attr("edge", fontname="Helvetica", fontsize="10")
+
+    # 1. Create a dictionary to easily look up if an entity is weak
+    entity_map = {ent.name: ent for ent in entities}
 
     for entity in entities:
         ent_id = f"ent_{entity.name}"
@@ -137,21 +140,38 @@ def draw_er_diagram(entities : List[Entity], relationships: List[Relationship], 
         )
 
         if rel.participants:
-
             for p in rel.participants:
-                dot.edge(f"ent_{p.entity}", rel_id, label=f" {p.cardinality} ", color="black")
-        elif rel.entity1 and rel.entity2:
+                is_total = (p.participation or "partial").lower() == "total"
+                ent_obj = entity_map.get(p.entity)
+                if is_identifying and ent_obj and ent_obj.isWeak:
+                    is_total = True
+                edge_color = "black:invis:black" if is_total else "black"
+                dot.edge(f"ent_{p.entity}", rel_id, label=f" {p.cardinality} ", color=edge_color)
 
+        elif rel.entity1 and rel.entity2:
             if ":" in str(rel.cardinality):
                 card1, card2 = rel.cardinality.split(":", 1)
             else:
                 card1, card2 = str(rel.cardinality), ""
 
-            edge1_color = "black:invis:black" if (rel.participation1 or "").lower() == "total" else "black"
-            edge2_color = "black:invis:black" if (rel.participation2 or "").lower() == "total" else "black"
+            is_total1 = (rel.participation1 or "").lower() == "total"
+            is_total2 = (rel.participation2 or "").lower() == "total"
+
+            # 2. FORCE double lines if it is an identifying relationship AND the entity is weak
+            ent1 = entity_map.get(rel.entity1)
+            ent2 = entity_map.get(rel.entity2)
+
+            if is_identifying and ent1 and ent1.isWeak:
+                is_total1 = True
+            if is_identifying and ent2 and ent2.isWeak:
+                is_total2 = True
+
+            edge1_color = "black:invis:black" if is_total1 else "black"
+            edge2_color = "black:invis:black" if is_total2 else "black"
 
             dot.edge(f"ent_{rel.entity1}", rel_id, label=f" {card1} ", color=edge1_color)
             dot.edge(rel_id, f"ent_{rel.entity2}", label=f" {card2} ", color=edge2_color)
+
         if rel.attributes:
             for attr in rel.attributes:
                 attr_id = f"attr_rel_{i}_{attr.name}"
@@ -167,7 +187,6 @@ def draw_er_diagram(entities : List[Entity], relationships: List[Relationship], 
 
     saved_path = dot.render(filename=output_filename, cleanup=True)
     return saved_path
-
 
 
 

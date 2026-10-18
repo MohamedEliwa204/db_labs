@@ -19,8 +19,10 @@ def generate_er_json_from_text(system_description:str, output_json_path:str, api
           "entities": [
             {
               "name": "EntityName",
+              "isWeak": true,
               "attributes": [
                 { "name": "PrimaryKeyAttr", "isPrimaryKey": true },
+                { "name": "PartialKeyAttr", "isPartialKey": true },
                 { "name": "SimpleAttr" },
                 { "name": "MultiValuedAttr", "isMultiValued": true },
                 { "name": "CompositeAttr", "composite": ["SubAttr1", "SubAttr2"] }
@@ -29,27 +31,35 @@ def generate_er_json_from_text(system_description:str, output_json_path:str, api
           ],
           "relationships": [
             {
+              "name": "RelationshipName",
               "entity1": "EntityName1",
               "entity2": "EntityName2",
-              "name": "RelationshipName",
               "cardinality": "1:1 | 1:N | N:1 | M:N",
               "participation1": "total | partial",
-              "participation2": "total | partial"
+              "participation2": "total | partial",
+              "isIdentifying": true,
+              "attributes": [
+                { "name": "RelationshipAttributeName" }
+              ],
+              "participants": [
+                { "entity": "EntityName3", "cardinality": "1" },
+                { "entity": "EntityName4", "cardinality": "N" }
+              ]
             }
           ]
         }
 
         Strict Rules:
-        1. Every entity MUST have at least one attribute with "isPrimaryKey": true.
-        2. Only include "isPrimaryKey": true when the attribute is a primary key. Omit it otherwise.
-        3. Only include "isMultiValued": true when an attribute can hold multiple values. Omit it otherwise.
-        4. Only include "composite": [...] when an attribute is composed of sub-parts. Omit it otherwise.
-        5. In "relationships", "entity1" and "entity2" MUST exactly match the "name" of an entity defined in the "entities" list.
-        6. "cardinality" MUST be formatted with a colon, such as "1:1", "1:N", "N:1", or "M:N".
-        7. Set "participation1" (for entity1) and "participation2" (for entity2) to "total" if every instance of that entity MUST participate in the relationship (e.g., "every employee must work in a department"), or "partial" if participation is optional (e.g., "an employee may manage a department").
-        8. If an entity cannot be uniquely identified without another entity, set "isWeak": true on that entity.
-        9. For weak entities, mark their discriminator attribute with "isPartialKey": true instead of "isPrimaryKey".
-        10. If a relationship connects a weak entity to its strong owner entity, set "isIdentifying": true on that relationship.
+        1. Every STRONG entity MUST have at least one attribute with "isPrimaryKey": true.
+        2. Only include true boolean flags (e.g., "isPrimaryKey", "isMultiValued", "isWeak"). Omit them entirely if false.
+        3. Only include "composite": [...] when an attribute is composed of sub-parts.
+        4. "cardinality" MUST be formatted with a colon, such as "1:1", "1:N", "N:1", or "M:N".
+        5. Set "participation1" and "participation2" to "total" if every instance of that entity MUST participate in the relationship, or "partial" if it is optional.
+        6. If an entity cannot be uniquely identified without another entity, set "isWeak": true on that entity.
+        7. For weak entities, mark their discriminator attribute with "isPartialKey": true instead of "isPrimaryKey".
+        8. If a relationship connects a weak entity to its strong owner entity, set "isIdentifying": true on that relationship.
+        9. For Ternary (3-way) or higher relationships, OMIT "entity1", "entity2", and "cardinality". Instead, use the "participants" array to list the connected entities.
+        10. If a relationship has its own attributes (e.g., EnrollmentDate, Grade), list them in the relationship's "attributes" array.
         """
 
     models_to_try = [
