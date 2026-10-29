@@ -1,12 +1,9 @@
-from typing import List
-
-import graphviz
-import classes
 import os
 if os.name == "nt":
     os.environ["PATH"] += os.pathsep + r"C:\Program Files\Graphviz\bin"
 
 from typing import List
+import graphviz
 import classes
 
 
@@ -33,6 +30,10 @@ def generate_dot_diagram(tables: List[classes.Table]) -> str:
             if col in table.primary_keys:
                 display_text = f"<u>{display_text}</u>"
 
+            is_fk = any(fk[0] == col for fk in table.foreign_keys)
+            if is_fk:
+                display_text += " (FK)"
+
             label += f'<td port="{col}" align="center">{display_text}</td>'
 
         label += '</tr></table>'
@@ -48,6 +49,7 @@ def generate_dot_diagram(tables: List[classes.Table]) -> str:
 
     lines.append("}")
     return "\n".join(lines)
+
 
 if __name__ == "__main__":
     entities, relationships = classes.parse_erd_json("erd.json")
