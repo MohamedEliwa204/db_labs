@@ -81,3 +81,172 @@ class Relation:
         for row in self.rows:
             print(" | ".join(str(row.get(col, "")).ljust(col_widths[col]) for col in self.columns))
         print("-" * len(header))
+
+    def join(self, other: 'Relation', condition: Callable[[Dict[str, Any], Dict[str, Any]], bool],
+             condition_str: str = "") -> 'Relation':
+        new_rows = []
+        overlapping_cols = set(self.columns).intersection(other.columns)
+        for row1 in self.rows:
+            for row2 in other.rows:
+                if condition(row1, row2):
+                    merged_row = {}
+                    # Safely insert values, prefixing if there is a collision
+                    for col, val in row1.items():
+                        resolved_col = f"{self.name}.{col}" if col in overlapping_cols else col
+                        merged_row[resolved_col] = val
+                    for col, val in row2.items():
+                        resolved_col = f"{other.name}.{col}" if col in overlapping_cols else col
+                        merged_row[resolved_col] = val
+
+                    new_rows.append(merged_row)
+
+        name_suffix = condition_str if condition_str else "condition"
+        return Relation(f"{self.name} ⋈_{name_suffix} {other.name}", new_rows)
+
+    def natural_join(self, other: 'Relation') -> 'Relation':
+        new_rows = []
+        common_cols = set(self.columns).intersection(other.columns)
+        # If there are no common columns, it degenerates into a Cartesian Product
+        if not common_cols:
+            for row1 in self.rows:
+                for row2 in other.rows:
+                    new_rows.append({**row1, **row2})
+            return Relation(f"{self.name} ⨯ {other.name}", new_rows)
+        for row1 in self.rows:
+            for row2 in other.rows:
+                if all(row1[col] == row2[col] for col in common_cols):
+                    merged_row = {**row1, **row2}
+                    new_rows.append(merged_row)
+
+        return Relation(f"{self.name} * {other.name}", new_rows)
+
+    def left_join(self, other: 'Relation', condition: Callable[[Dict[str, Any], Dict[str, Any]], bool],
+                  condition_str: str = "") -> 'Relation':
+        new_rows = []
+        overlapping_cols = set(self.columns).intersection(other.columns)
+
+        for row1 in self.rows:
+            matched = False
+            for row2 in other.rows:
+                if condition(row1, row2):
+                    matched = True
+                    merged_row = {}
+                    for col, val in row1.items():
+                        resolved_col = f"{self.name}.{col}" if col in overlapping_cols else col
+                        merged_row[resolved_col] = val
+                    for col, val in row2.items():
+                        resolved_col = f"{other.name}.{col}" if col in overlapping_cols else col
+                        merged_row[resolved_col] = val
+                    new_rows.append(merged_row)
+
+
+            if not matched:
+                merged_row = {}
+                for col, val in row1.items():
+                    resolved_col = f"{self.name}.{col}" if col in overlapping_cols else col
+                    merged_row[resolved_col] = val
+                for col in other.columns:
+                    resolved_col = f"{other.name}.{col}" if col in overlapping_cols else col
+                    merged_row[resolved_col] = None
+                new_rows.append(merged_row)
+
+        name_suffix = condition_str if condition_str else "condition"
+        return Relation(f"{self.name} ⟕_{name_suffix} {other.name}", new_rows)
+
+    def right_join(self, other: 'Relation', condition: Callable[[Dict[str, Any], Dict[str, Any]], bool],
+                   condition_str: str = "") -> 'Relation':
+        new_rows = []
+        overlapping_cols = set(self.columns).intersection(other.columns)
+        for row2 in other.rows:
+            matched = False
+            for row1 in self.rows:
+                if condition(row1, row2):
+                    matched = True
+                    merged_row = {}
+                    for col, val in row1.items():
+                        resolved_col = f"{self.name}.{col}" if col in overlapping_cols else col
+                        merged_row[resolved_col] = val
+                    for col, val in row2.items():
+                        resolved_col = f"{other.name}.{col}" if col in overlapping_cols else col
+                        merged_row[resolved_col] = val
+                    new_rows.append(merged_row)
+
+            if not matched:
+                merged_row = {}
+                for col in self.columns:
+                    resolved_col = f"{self.name}.{col}" if col in overlapping_cols else col
+                    merged_row[resolved_col] = None
+                for col, val in row2.items():
+                    resolved_col = f"{other.name}.{col}" if col in overlapping_cols else col
+                    merged_row[resolved_col] = val
+                new_rows.append(merged_row)
+
+        name_suffix = condition_str if condition_str else "condition"
+        return Relation(f"{self.name} ⟖_{name_suffix} {other.name}", new_rows)
+
+    from typing import List, Tuple, Dict, Any
+
+    def aggregate(self, group_by_cols: List[str], aggregations: List[Tuple[str, str]]) -> 'Relation':
+        # Validate columns
+        for col in group_by_cols:
+            if col not in self.columns:
+                raise ValueError(f"Group by column '{col}' not found in relation {self.name}")
+        for agg_func, agg_col in aggregations:
+            if agg_col not in self.columns and agg_col != "*":
+                raise ValueError(f"Aggregate column '{agg_col}' not found in relation {self.name}")
+
+        agg_names = ",".join([f"{func.upper()}({col})" for func, col in aggregations])
+        group_cols = ",".join([f"({col})" for  col in group_by_cols])
+        new_rel_name = f"{group_cols}_γ_{agg_names}({self.name})"
+
+        # Edge case 1: Empty relation
+        if not self.rows:
+            return Relation(new_rel_name, [])
+
+        # Grouping Phase: Store entire rows instead of single values
+        grouped = {}
+        for row in self.rows:
+            # Edge case 2: Global aggregation (empty group_by_cols) -> use a constant key
+            key = tuple(row.get(col) for col in group_by_cols) if group_by_cols else ("_global_",)
+            if key not in grouped:
+                grouped[key] = []
+            grouped[key].append(row)
+
+        # Calculation Phase
+        new_rows = []
+        for key, rows_in_group in grouped.items():
+            new_row = {}
+            if group_by_cols:
+                new_row = dict(zip(group_by_cols, key))
+            for agg_func, agg_col in aggregations:
+                agg_upper = agg_func.upper()
+
+                if agg_col == "*":
+                    # Special case to support COUNT(*)
+                    values = rows_in_group
+                else:
+                    values = [r.get(agg_col) for r in rows_in_group if r.get(agg_col) is not None]
+
+                result = None
+                if agg_upper == 'COUNT':
+                    result = len(values)
+                elif values:
+                    numeric_vals = [v for v in values if isinstance(v, (int, float))]
+                    if agg_upper == 'SUM':
+                        result = sum(numeric_vals)
+                    elif agg_upper == 'AVG':
+                        result = sum(numeric_vals) / len(numeric_vals) if numeric_vals else None
+                    elif agg_upper == 'MAX':
+                        result = max(values)
+                    elif agg_upper == 'MIN':
+                        result = min(values)
+                    else:
+                        raise ValueError(f"Unsupported aggregate function: {agg_func}")
+                else:
+                    # If all values were None, COUNT is 0, others are None
+                    if agg_upper != 'COUNT':
+                        result = None
+                new_col_name = f"{agg_upper}({agg_col})"
+                new_row[new_col_name] = result
+            new_rows.append(new_row)
+        return Relation(new_rel_name, new_rows)
