@@ -52,7 +52,7 @@ def generate_dot_diagram(tables: List[classes.Table]) -> str:
 
 
 if __name__ == "__main__":
-    entities, relationships = classes.parse_erd_json("erd.json")
+    entities, relationships = classes.parse_erd_json("part1_erd_stress_test.json")
     tables = classes.map_er_to_relational(entities, relationships)
     dot_source = generate_dot_diagram(tables)
     graph = graphviz.Source(dot_source)

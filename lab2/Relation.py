@@ -10,11 +10,9 @@ class Relation:
         self.columns = list(self.rows[0].keys()) if self.rows else []
 
     def _deduplicate(self, rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Helper: Removes duplicate rows by converting dicts to hashable frozensets."""
         seen = set()
         unique_rows = []
         for row in rows:
-            # Sort items to ensure consistent hashing
             hashed_row = frozenset(row.items())
             if hashed_row not in seen:
                 seen.add(hashed_row)
@@ -22,7 +20,6 @@ class Relation:
         return unique_rows
 
     def _hashable_rows(self) -> set:
-        """Helper: Returns rows as a set of frozensets for fast set operations."""
         return {frozenset(row.items()) for row in self.rows}
 
 
